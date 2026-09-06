@@ -1,0 +1,13 @@
+# Normalize to LF in the repository. These files are deployed to Linux web
+# servers, so CRLF from a Windows checkout would follow them there.
+* text=auto eol=lf
+
+*.php text eol=lf
+*.js  text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
+
+# Excluded from release archives.
+/docs/         export-ignore
+/.gitattributes export-ignore
+/.gitignore     export-ignore

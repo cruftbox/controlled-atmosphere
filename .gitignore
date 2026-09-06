@@ -1,0 +1,30 @@
+# WordPress
+wp-config.php
+
+# Dependencies
+/vendor/
+/node_modules/
+composer.lock
+package-lock.json
+
+# Build output
+/build/
+/dist/
+*.zip
+
+# Tooling
+.phpcs.cache
+.phpunit.result.cache
+
+# Editors
+.vscode/
+.idea/
+*.sublime-*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
