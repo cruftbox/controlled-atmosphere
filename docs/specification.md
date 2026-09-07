@@ -545,10 +545,20 @@ the plugin was installed. Two static files plus two records produced the card.
 - The composer renders the native card with a **View publication** button,
   showing title, description, publish date, publication name, and author handle.
 
-**Not exercised by this test:**
+**Cover image and tags, confirmed separately the same day:**
 
-- `coverImage` and the blob upload path — the test record carried no image.
-- `tags` — present in the record, no visible effect on the card.
+- `uploadBlob` accepted a 30,036-byte PNG and returned a reference the record
+  embedded without complaint; the blob reads back byte-identical from the PDS.
+- The card renders the cover image full width and **uncropped** at 393x233
+  (~1.69:1). Selecting an image variant by file size rather than aspect ratio is
+  therefore safe.
+- `tags` are stored but render nowhere on the card. The 25-tag cap is a
+  deliberate sanity limit, not a lexicon requirement.
+
+**Still not exercised:**
+
+- The 1,000,000-byte blob ceiling and the "no variant fits" branch. The test
+  image was 30 KB.
 - Updating an existing document record via `putRecord`.
 - Any plugin code. The plugin has still never run.
 
