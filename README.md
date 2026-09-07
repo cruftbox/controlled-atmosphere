@@ -3,9 +3,10 @@
 A WordPress plugin that makes your posts eligible for Bluesky's native
 **"View Publication"** article card — without ever posting to your feed.
 
-> **Status: early development.** The settings page, publication record, and
-> verification endpoint are implemented. Per-post record creation is not yet
-> built. See [Project status](#project-status).
+> **Status: early development, not yet tested against a live PDS.** The full
+> publish pipeline is implemented — publishing a post writes a record and emits
+> its link tag. Some details of the record format are still unconfirmed. See
+> [Project status](#project-status).
 
 ## What it does
 
@@ -189,23 +190,48 @@ use it to show your publication to people who have not seen a link.
 Implemented:
 
 - AT Protocol client — handle and DID resolution, PDS discovery, session
-  handling, record writes, blob uploads
+  handling with refresh, record writes, blob uploads, rate-limit handling
 - Settings page with validation and a status panel
 - Publication record sync
 - `.well-known` verification endpoint and external self-check
-- Front-page publication link tag
-- Per-post opt-out control
+- Link tags for both the publication and individual documents
+- Document records with full lifecycle — created on publish, updated on edit,
+  deleted on unpublish, trash, exclusion, or permanent delete
+- Per-post opt-out control, in both editors
+- Record status column on the Posts screen
+- Bounded backfill for recent posts
 
 Not yet built:
 
-- Per-post document record creation and lifecycle
-- Retry queue for failed writes
-- Backfill
-- WP-CLI commands
+- Retry queue for failed writes. Failures are recorded and shown in the Posts
+  column, but are not retried automatically — re-saving the post retries it.
+- WP-CLI command for large archives. The admin backfill is capped at 50 posts
+  because AT Protocol enforces per-account write limits.
 
-Some details of the Standard.site record format are undocumented and are being
-confirmed empirically. See [`docs/specification.md`](docs/specification.md) for
-the full design and the list of open questions.
+**Not yet verified against a live PDS.** The code parses and the logic is
+complete, but no record has been written to a real repo yet. Two details of the
+record format are inferred rather than documented — the record key convention,
+and whether the `site` field wants an AT-URI or an https URL. Both are isolated
+to single locations for cheap correction. See
+[`docs/specification.md`](docs/specification.md) for the full design and the
+list of open questions.
+
+### Extending
+
+The document record passes through a filter before it is written, so additional
+lexicon fields can be added without modifying the plugin:
+
+```php
+add_filter( 'controlled_atmosphere_document_record', function ( $record, $post ) {
+    $record['textContent'] = mb_substr( wp_strip_all_tags( $post->post_content ), 0, 10000 );
+    return $record;
+}, 10, 2 );
+```
+
+`textContent` is deliberately omitted by default: it contributes nothing to the
+Bluesky card, and setting it publishes a copy of your article body as public
+data. The snippet above opts in if you want reader apps to render your writing
+natively.
 
 ## References
 

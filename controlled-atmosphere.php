@@ -48,6 +48,7 @@ require_once PATH . 'includes/class-atproto-client.php';
 require_once PATH . 'includes/class-publication.php';
 require_once PATH . 'includes/class-blobs.php';
 require_once PATH . 'includes/class-post-meta.php';
+require_once PATH . 'includes/class-document.php';
 
 /**
  * Boots the plugin.
@@ -61,6 +62,7 @@ function bootstrap(): void {
 	Settings::instance()->init();
 	Publication::instance()->init();
 	Post_Meta::instance()->init();
+	Document::instance()->init();
 }
 add_action( 'plugins_loaded', __NAMESPACE__ . '\\bootstrap' );
 

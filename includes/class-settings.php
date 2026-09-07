@@ -31,6 +31,7 @@ class Settings {
 		add_action( 'admin_menu', array( $this, 'add_page' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_post_controlled_atmosphere_verify', array( $this, 'handle_verify' ) );
+		add_action( 'admin_post_controlled_atmosphere_backfill', array( $this, 'handle_backfill' ) );
 	}
 
 	/**
@@ -227,6 +228,76 @@ class Settings {
 	}
 
 	/**
+	 * Creates records for the most recent published posts.
+	 *
+	 * Deliberately bounded. The archive on a long-running blog is large enough
+	 * to hit AT Protocol write limits, and that is a separate job with its own
+	 * pacing and resumability; this action exists to prove the pipeline works
+	 * on a handful of posts first.
+	 */
+	public function handle_backfill(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to do that.', 'controlled-atmosphere' ) );
+		}
+
+		check_admin_referer( 'controlled_atmosphere_backfill' );
+
+		$count = isset( $_POST['count'] ) ? absint( wp_unslash( $_POST['count'] ) ) : 10;
+		$count = max( 1, min( 50, $count ) );
+
+		$posts = get_posts(
+			array(
+				'post_type'        => 'post',
+				'post_status'      => 'publish',
+				'numberposts'      => $count,
+				'orderby'          => 'date',
+				'order'            => 'DESC',
+				'suppress_filters' => false,
+			)
+		);
+
+		$done    = 0;
+		$skipped = 0;
+		$failed  = 0;
+
+		foreach ( $posts as $post ) {
+			if ( Post_Meta::is_excluded( $post->ID ) ) {
+				++$skipped;
+				continue;
+			}
+
+			if ( Document::instance()->sync( $post ) ) {
+				++$done;
+			} else {
+				++$failed;
+			}
+		}
+
+		set_transient(
+			'controlled_atmosphere_notice',
+			sprintf(
+				/* translators: 1: number written, 2: number failed, 3: number skipped. */
+				__( '%1$d written, %2$d failed, %3$d skipped as excluded.', 'controlled-atmosphere' ),
+				$done,
+				$failed,
+				$skipped
+			),
+			60
+		);
+
+		wp_safe_redirect(
+			add_query_arg(
+				array(
+					'page'     => self::PAGE_SLUG,
+					'ca_state' => $failed > 0 ? 'backfill_partial' : 'backfill_done',
+				),
+				admin_url( 'options-general.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
 	 * Renders the settings page.
 	 */
 	public function render_page(): void {
@@ -373,6 +444,8 @@ class Settings {
 			'synced'            => array( 'success', __( 'Publication record saved and the verification endpoint responded correctly.', 'controlled-atmosphere' ) ),
 			'sync_failed'       => array( 'error', __( 'Could not write the publication record.', 'controlled-atmosphere' ) ),
 			'well_known_failed' => array( 'error', __( 'The publication record was written, but the verification endpoint is not reachable. Bluesky will not render article cards until this is fixed.', 'controlled-atmosphere' ) ),
+			'backfill_done'     => array( 'success', __( 'Backfill complete.', 'controlled-atmosphere' ) ),
+			'backfill_partial'  => array( 'warning', __( 'Backfill finished with failures. Check the Bluesky column on the Posts screen for details.', 'controlled-atmosphere' ) ),
 		);
 
 		if ( ! isset( $map[ $state ] ) ) {
@@ -453,6 +526,21 @@ class Settings {
 			?>
 			<p class="description">
 				<?php esc_html_e( 'Writes the publication record to your repo, then fetches your own verification URL over HTTP to confirm it answers correctly.', 'controlled-atmosphere' ); ?>
+			</p>
+		</form>
+
+		<h2 class="title"><?php esc_html_e( 'Existing posts', 'controlled-atmosphere' ); ?></h2>
+		<p class="description" style="max-width:46em">
+			<?php esc_html_e( 'Posts published from now on get a record automatically. This creates records for posts that already exist, most recent first. Start small and confirm a card renders before doing more.', 'controlled-atmosphere' ); ?>
+		</p>
+		<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+			<input type="hidden" name="action" value="controlled_atmosphere_backfill" />
+			<?php wp_nonce_field( 'controlled_atmosphere_backfill' ); ?>
+			<label for="ca-count"><?php esc_html_e( 'Number of recent posts:', 'controlled-atmosphere' ); ?></label>
+			<input type="number" name="count" id="ca-count" value="10" min="1" max="50" step="1" style="width:6em" />
+			<?php submit_button( __( 'Create records', 'controlled-atmosphere' ), 'secondary', 'submit', false ); ?>
+			<p class="description">
+				<?php esc_html_e( 'Limited to 50 at a time. Large archives will hit AT Protocol write limits and need the WP-CLI command instead.', 'controlled-atmosphere' ); ?>
 			</p>
 		</form>
 		<?php
