@@ -32,6 +32,26 @@ class Settings {
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 		add_action( 'admin_post_controlled_atmosphere_verify', array( $this, 'handle_verify' ) );
 		add_action( 'admin_post_controlled_atmosphere_backfill', array( $this, 'handle_backfill' ) );
+		add_filter( 'plugin_action_links_' . plugin_basename( PATH . 'controlled-atmosphere.php' ), array( $this, 'add_action_link' ) );
+	}
+
+	/**
+	 * Adds a Settings link to the plugin's row on the Plugins screen.
+	 *
+	 * @param array $links Existing action links.
+	 * @return array
+	 */
+	public function add_action_link( array $links ): array {
+		array_unshift(
+			$links,
+			sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( admin_url( 'options-general.php?page=' . self::PAGE_SLUG ) ),
+				esc_html__( 'Settings', 'controlled-atmosphere' )
+			)
+		);
+
+		return $links;
 	}
 
 	/**
