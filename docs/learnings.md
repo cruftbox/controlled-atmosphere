@@ -171,6 +171,40 @@ Anyone evaluating this plugin should evaluate that filter first. This plugin's
 justification is scope — a small codebase that writes records and nothing else —
 not capability.
 
+## 11. Plugin state must not live in a sanitized option
+
+`register_setting()` attaches its `sanitize_callback` to the
+`sanitize_option_{$name}` filter, and **`update_option()` runs that filter on
+every write** — not only on form submission.
+
+A sanitize callback written the usual way rebuilds the array from submitted form
+fields and carries non-form fields forward from existing storage. That is correct
+for a form post and destructive for a programmatic write: the plugin sets a
+value, sanitize replaces it with the old one, and the write vanishes with no
+error. The symptom was a success message and a status panel reporting "Not
+created yet" at the same time.
+
+Keep plugin-owned state in a separate, unregistered option. Patching the
+carry-forward list works but leaves the trap armed for the next field.
+
+Note that this is invisible in WP-CLI: `register_setting()` runs on `admin_init`,
+which CLI never fires, so the callback is not attached and a write appears to
+succeed. Reproducing it requires registering the setting explicitly first — an
+early test of mine "disproved" the diagnosis for exactly this reason.
+
+---
+
+## 12. End-to-end result
+
+Confirmed on a live WordPress site on 2026-09-06: publishing produced records,
+the verification file was written on a host where PHP interception is impossible,
+link tags survived HTML minification, and posts pasted into Bluesky rendered
+native article cards with cover images and a working **View publication** button.
+
+The card is built entirely from the record. Mastodon and other Open Graph
+consumers are unaffected — they read `og:` meta tags, which this plugin never
+touches, so both preview systems coexist on the same page.
+
 ---
 
 ## Process learnings

@@ -3,10 +3,10 @@
 A WordPress plugin that makes your posts eligible for Bluesky's native
 **"View Publication"** article card — without ever posting to your feed.
 
-> **Status: early development, not yet tested against a live PDS.** The full
-> publish pipeline is implemented — publishing a post writes a record and emits
-> its link tag. Some details of the record format are still unconfirmed. See
-> [Project status](#project-status).
+> **Status: working, lightly exercised.** Verified end to end on a live site on
+> 2026-09-06 — records written, verification satisfied, and native article cards
+> rendering for real posts on Bluesky. Editing, unpublishing, and large backfills
+> have not been exercised. See [Project status](#project-status).
 
 ## What it does
 
@@ -210,34 +210,43 @@ use it to show your publication to people who have not seen a link.
 
 ## Project status
 
-Implemented:
+Implemented and verified on a live site:
 
 - AT Protocol client — handle and DID resolution, PDS discovery, session
   handling with refresh, record writes, blob uploads, rate-limit handling
 - Settings page with validation and a status panel
-- Publication record sync
-- `.well-known` verification endpoint and external self-check
-- Link tags for both the publication and individual documents
-- Document records with full lifecycle — created on publish, updated on edit,
-  deleted on unpublish, trash, exclusion, or permanent delete
+- Publication record sync, including **adopting an existing record** rather than
+  creating a duplicate
+- `.well-known` verification: request interception, and a file written to disk
+  when the web server owns that path
+- Link tags for both the publication and individual documents, confirmed to
+  survive HTML minification by Autoptimize
+- Document records — created on publish and by backfill
+- Cover images uploaded as blobs and rendered on the card
+- Descriptions derived from post content, truncated on a word boundary
 - Per-post opt-out control, in both editors
 - Record status column on the Posts screen
 - Bounded backfill for recent posts
 
-Not yet built:
+Implemented but **not yet exercised**:
+
+- Editing a post → record update with `updatedAt`
+- Unpublishing, trashing, or excluding a post → record deletion
+- The opt-out checkbox in either editor
+- A featured image over the 1,000,000-byte blob ceiling, and the "no variant
+  fits" branch
+- Backfilling a large archive, where AT Protocol write limits are real
+
+Not built:
 
 - Retry queue for failed writes. Failures are recorded and shown in the Posts
-  column, but are not retried automatically — re-saving the post retries it.
-- WP-CLI command for large archives. The admin backfill is capped at 50 posts
-  because AT Protocol enforces per-account write limits.
+  column, but are not retried automatically — re-saving the post retries.
+- WP-CLI command for large archives. The admin backfill is capped at 50 posts.
+- Orphan reconciliation. Record keys are server-minted TIDs stored in post meta;
+  if that meta is lost, the record cannot be addressed or deleted.
 
-**Not yet verified against a live PDS.** The code parses and the logic is
-complete, but no record has been written to a real repo yet. Two details of the
-record format are inferred rather than documented — the record key convention,
-and whether the `site` field wants an AT-URI or an https URL. Both are isolated
-to single locations for cheap correction. See
-[`docs/specification.md`](docs/specification.md) for the full design and the
-list of open questions.
+See [`docs/learnings.md`](docs/learnings.md) for what this cost to discover, and
+[`docs/specification.md`](docs/specification.md) for the full design.
 
 ### Extending
 
