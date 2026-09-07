@@ -20,16 +20,6 @@ class Publication {
 	public const COLLECTION = 'site.standard.publication';
 
 	/**
-	 * Record key for the publication.
-	 *
-	 * INFERENCE, NOT DOCUMENTED. Standard.site does not state an rkey
-	 * convention; "self" is the AT Protocol convention for singleton records.
-	 * Confirm against a working implementation before relying on it. Changing
-	 * this constant orphans any record already written under the old key.
-	 */
-	public const RKEY = 'self';
-
-	/**
 	 * The path Bluesky fetches to verify domain ownership of the publication.
 	 */
 	public const WELL_KNOWN_PATH = '/.well-known/site.standard.publication';
@@ -151,18 +141,69 @@ class Publication {
 			$record['icon'] = $icon;
 		}
 
-		$response = $client->put_record( self::COLLECTION, self::RKEY, $record );
+		$rkey = $this->existing_rkey( $client, $record['url'] );
+
+		if ( is_wp_error( $rkey ) ) {
+			return $rkey;
+		}
+
+		// A record key already in use is updated in place. Otherwise let the
+		// server mint one, matching how other Standard.site tooling writes
+		// these records.
+		$response = '' === $rkey
+			? $client->create_record( self::COLLECTION, $record )
+			: $client->put_record( self::COLLECTION, $rkey, $record );
 
 		if ( is_wp_error( $response ) ) {
 			return $response;
 		}
 
-		$settings                    = get_setting();
-		$settings['publication_uri'] = (string) ( $response['uri'] ?? '' );
-		$settings['publication_cid'] = (string) ( $response['cid'] ?? '' );
+		$uri = (string) ( $response['uri'] ?? '' );
+
+		$settings                     = get_setting();
+		$settings['publication_uri']  = $uri;
+		$settings['publication_cid']  = (string) ( $response['cid'] ?? '' );
+		$settings['publication_rkey'] = ATProto_Client::rkey_from_uri( $uri );
 		update_option( OPTION_KEY, $settings );
 
-		return $settings['publication_uri'];
+		return $uri;
+	}
+
+	/**
+	 * Finds the record key to write the publication under.
+	 *
+	 * Prefers the key already stored. Failing that, looks for a record in the
+	 * repo whose url matches this site and adopts it -- a site may already
+	 * have a publication record written by other tooling, and creating a
+	 * second one would leave two records competing for a single verification
+	 * endpoint.
+	 *
+	 * @param ATProto_Client $client Authenticated client.
+	 * @param string         $url    This site's URL, without trailing slash.
+	 * @return string|\WP_Error Existing key, or an empty string to create one.
+	 */
+	private function existing_rkey( ATProto_Client $client, string $url ) {
+		$stored = (string) get_setting( 'publication_rkey', '' );
+
+		if ( '' !== $stored ) {
+			return $stored;
+		}
+
+		$response = $client->list_records( self::COLLECTION );
+
+		if ( is_wp_error( $response ) ) {
+			return $response;
+		}
+
+		foreach ( (array) ( $response['records'] ?? array() ) as $record ) {
+			$existing = untrailingslashit( (string) ( $record['value']['url'] ?? '' ) );
+
+			if ( $existing === $url && ! empty( $record['uri'] ) ) {
+				return ATProto_Client::rkey_from_uri( (string) $record['uri'] );
+			}
+		}
+
+		return '';
 	}
 
 	/**
@@ -207,10 +248,12 @@ class Publication {
 			return new \WP_Error(
 				'controlled_atmosphere_well_known_status',
 				sprintf(
-					/* translators: 1: URL, 2: HTTP status code. */
-					__( '%1$s returned HTTP %2$d. Your web server is likely intercepting the .well-known path before WordPress sees it.', 'controlled-atmosphere' ),
+					/* translators: 1: URL, 2: HTTP status code, 3: file path, 4: file contents. */
+					__( '%1$s returned HTTP %2$d. Your web server is handling the .well-known path itself, so WordPress never sees the request and cannot answer it. Fix this by creating a file at %3$s in your site root containing exactly: %4$s', 'controlled-atmosphere' ),
 					$url,
-					$code
+					$code,
+					'.well-known/site.standard.publication',
+					$expected
 				)
 			);
 		}

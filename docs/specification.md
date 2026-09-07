@@ -467,31 +467,71 @@ Record writes and deletes during testing are real operations on a real repo.
 
 ## 11. Open questions
 
-Resolve these empirically on the live site early — before building the lifecycle
-and queue layers, since answers 1 and 2 change the record-writing code. Create
-one publication and one document record by hand (curl against the PDS, or
-pdsls.dev), paste the URL into the composer, and observe.
+Two of the original four were answered empirically on 2026-09-06 by inspecting a
+live repo that already carried Standard.site records.
 
-Do not guess these in code:
+### Resolved
 
-1. **Record key convention** for `site.standard.publication` and
-   `site.standard.document` — not documented. `self` for the publication is an
-   inference from AT Protocol convention.
-2. **`site` field format** — the lexicon says it points to "a publication record
-   `at://` or a publication url `https://`". Which form Bluesky's verifier
-   prefers is unconfirmed; the AT-URI form is specified above as the stronger
-   link, but this needs testing.
-3. **Verification caching** — how long Bluesky caches the `.well-known` result and
-   ingested records is unknown. This determines how quickly a newly published
-   post becomes card-eligible, and whether a just-published post pasted
-   immediately will render the card.
-4. **Document-level verification** — the docs describe the `.well-known` endpoint
-   for publications only. Whether documents are verified transitively through
-   their publication, or independently, is not stated.
+1. **Record key convention — publication.** RESOLVED. Not `self`. A record
+   written by other tooling used a server-minted TID (`3muuw2vqqcyop`).
+   Hardcoding `self` would have created a *second* publication record rather
+   than updating the existing one, leaving two records competing for a single
+   verification endpoint. The plugin now stores the key it wrote, adopts any
+   existing record whose `url` matches the site, and otherwise lets the server
+   mint one via `createRecord`.
+
+2. **Verification endpoint reachability.** RESOLVED, and it is a real
+   obstacle. On the target host, Apache handles `/.well-known/` itself and the
+   request never reaches WordPress — confirmed by fingerprinting: a 404 under
+   `/.well-known/` returns Apache's 236-byte stock page, while a 404 elsewhere
+   returns WordPress's 48KB themed page. **The plugin's PHP interception cannot
+   work on this host.** The self-check detects it and the error message now
+   gives the exact file path and contents to create instead. Any plugin faces
+   this equally; it is a server configuration issue, not a plugin defect.
+
+### Still open
+
+3. **`site` field format.** The lexicon says the field points to "a publication
+   record `at://` or a publication url `https://`". Which form the verifier
+   prefers is still unconfirmed. The plugin writes the AT-URI. Needs testing.
+
+4. **Record key convention — documents.** Still undocumented. The plugin uses
+   `wp-<post ID>`, which is valid per the record-key grammar and makes writes
+   idempotent. No counter-evidence found; no document records existed in the
+   inspected repo to compare against.
+
+5. **Verification caching.** How long Bluesky caches the `.well-known` result
+   and ingested records is unknown. Determines how soon after publishing a post
+   becomes card-eligible.
 
 ---
 
-## 12. Sources
+## 12. Prior art
+
+**ATmosphere** (Automattic) covers much of this specification and more:
+`site.standard.publication` and `site.standard.document` records, both link
+tags, per-post opt-out, a posts-list column, WP-CLI backfill with rate-limit
+pacing, and `.well-known` verification.
+
+Critically, since 2.2.0 it can produce document records *without* cross-posting:
+
+```php
+add_filter( 'atmosphere_should_publish_bluesky_post', '__return_false' );
+```
+
+It also exposes `atmosphere_publication_show_in_discover`,
+`atmosphere_transform_document`, and `atmosphere_connection_only_mode`.
+
+This was evaluated on 2026-09-06 and deliberately not adopted. This plugin's
+justification is therefore not capability but scope: a small, single-purpose
+codebase that writes records and nothing else, versus a larger plugin that also
+handles OAuth, comment import, reactions, and reply publishing. That is a
+maintenance-surface argument, not a functionality one, and it should be
+restated honestly rather than implying the capability does not exist elsewhere.
+
+---
+
+## 13. Sources
 
 - [Standard.site](https://standard.site/)
 - [Document Lexicon](https://standard.site/docs/lexicons/document)

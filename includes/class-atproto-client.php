@@ -289,6 +289,75 @@ class ATProto_Client {
 	}
 
 	/**
+	 * Creates a record, letting the server mint the record key.
+	 *
+	 * Used for the publication record, where observed tooling writes a
+	 * server-assigned TID rather than a fixed key. The returned AT-URI carries
+	 * the key, which the caller must store for later updates.
+	 *
+	 * @param string $collection Lexicon NSID.
+	 * @param array  $record     Record body, without $type.
+	 * @return array|\WP_Error Response containing uri and cid.
+	 */
+	public function create_record( string $collection, array $record ) {
+		$record['$type'] = $collection;
+
+		return $this->authed_request(
+			'com.atproto.repo.createRecord',
+			array(
+				'repo'       => $this->did,
+				'collection' => $collection,
+				'record'     => $record,
+			)
+		);
+	}
+
+	/**
+	 * Lists records in a collection.
+	 *
+	 * @param string $collection Lexicon NSID.
+	 * @param int    $limit      Maximum records to return.
+	 * @return array|\WP_Error Response containing a records array.
+	 */
+	public function list_records( string $collection, int $limit = 50 ) {
+		$token = $this->access_token();
+
+		if ( is_wp_error( $token ) ) {
+			return $token;
+		}
+
+		$url = add_query_arg(
+			array(
+				'repo'       => rawurlencode( $this->did ),
+				'collection' => rawurlencode( $collection ),
+				'limit'      => $limit,
+			),
+			$this->pds . '/xrpc/com.atproto.repo.listRecords'
+		);
+
+		return self::decode(
+			wp_remote_get(
+				$url,
+				array(
+					'timeout' => self::TIMEOUT,
+					'headers' => array( 'Authorization' => 'Bearer ' . $token ),
+				)
+			)
+		);
+	}
+
+	/**
+	 * Extracts the record key from an AT-URI.
+	 *
+	 * @param string $uri AT-URI.
+	 */
+	public static function rkey_from_uri( string $uri ): string {
+		$parts = explode( '/', $uri );
+
+		return (string) end( $parts );
+	}
+
+	/**
 	 * Deletes a record.
 	 *
 	 * @param string $collection Lexicon NSID.

@@ -80,9 +80,12 @@ class Settings {
 			'publication_name'        => sanitize_text_field( $input['publication_name'] ?? '' ),
 			'publication_description' => sanitize_textarea_field( $input['publication_description'] ?? '' ),
 			'show_in_discover'        => ! empty( $input['show_in_discover'] ),
-			// Carry forward values that are not user-editable.
+			// Carry forward values that are not user-editable. Losing the rkey
+			// here would make the next sync create a second publication record
+			// instead of updating the existing one.
 			'publication_uri'         => $existing['publication_uri'] ?? '',
 			'publication_cid'         => $existing['publication_cid'] ?? '',
+			'publication_rkey'        => $existing['publication_rkey'] ?? '',
 		);
 
 		// App password: an unchanged mask means "keep what is stored".
