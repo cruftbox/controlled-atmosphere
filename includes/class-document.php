@@ -188,17 +188,25 @@ class Document {
 		}
 
 		$record = $this->build_record( $post, $site, $client );
+		$rkey   = (string) get_post_meta( $post->ID, META_RKEY, true );
 
-		$response = $client->put_record( self::COLLECTION, self::rkey( $post->ID ), $record );
+		// The lexicon requires a TID record key, so a key cannot be derived
+		// from the post ID -- the PDS rejects anything else. The server mints
+		// one on first write and it is stored; later writes update in place.
+		$response = '' === $rkey
+			? $client->create_record( self::COLLECTION, $record )
+			: $client->put_record( self::COLLECTION, $rkey, $record );
 
 		if ( is_wp_error( $response ) ) {
 			$this->record_error( $post->ID, $response->get_error_message() );
 			return false;
 		}
 
-		update_post_meta( $post->ID, META_URI, (string) ( $response['uri'] ?? '' ) );
+		$uri = (string) ( $response['uri'] ?? '' );
+
+		update_post_meta( $post->ID, META_URI, $uri );
 		update_post_meta( $post->ID, META_CID, (string) ( $response['cid'] ?? '' ) );
-		update_post_meta( $post->ID, META_RKEY, self::rkey( $post->ID ) );
+		update_post_meta( $post->ID, META_RKEY, ATProto_Client::rkey_from_uri( $uri ) );
 		delete_post_meta( $post->ID, self::META_ERROR );
 
 		return true;
@@ -223,13 +231,17 @@ class Document {
 			return false;
 		}
 
-		// Prefer the rkey the record was written under. Falling back to the
-		// derived key would delete the wrong thing if the derivation ever
-		// changes.
+		// The record key is server-assigned, so the stored value is the only
+		// way to address the record. Without it there is nothing safe to
+		// delete: guessing a key would target someone else's record or none at
+		// all. Clear the local pointers and leave the repo alone.
 		$rkey = (string) get_post_meta( $post_id, META_RKEY, true );
 
 		if ( '' === $rkey ) {
-			$rkey = self::rkey( $post_id );
+			delete_post_meta( $post_id, META_URI );
+			delete_post_meta( $post_id, META_CID );
+
+			return false;
 		}
 
 		$response = $client->delete_record( self::COLLECTION, $rkey );
@@ -433,25 +445,6 @@ class Document {
 		$text = trim( $text );
 
 		return mb_strlen( $text ) > $graphemes ? mb_substr( $text, 0, $graphemes ) : $text;
-	}
-
-	/**
-	 * The record key for a post.
-	 *
-	 * Deterministic so that writes are idempotent: the same post always targets
-	 * the same key, and putRecord then serves as both create and update. A lost
-	 * meta value cannot orphan a record.
-	 *
-	 * UNCONFIRMED: Standard.site documents no rkey convention. This uses the
-	 * post ID, which is valid per the AT Protocol record-key grammar and stable
-	 * for the life of the post. If a convention turns out to exist, changing
-	 * this orphans records already written under the old key -- migrate by
-	 * deleting with the stored rkey before rewriting.
-	 *
-	 * @param int $post_id Post ID.
-	 */
-	public static function rkey( int $post_id ): string {
-		return 'wp-' . $post_id;
 	}
 
 	/**

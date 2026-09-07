@@ -489,16 +489,34 @@ live repo that already carried Standard.site records.
    gives the exact file path and contents to create instead. Any plugin faces
    this equally; it is a server configuration issue, not a plugin defect.
 
+### Also resolved
+
+3. **Record key convention — documents.** RESOLVED, and it invalidated the
+   original design. `site.standard.document` also requires a TID. A key derived
+   from the post ID is rejected outright:
+
+   ```
+   HTTP 400: Invalid record key for site.standard.document:
+             Invalid TID string (got "wp-test")
+   ```
+
+   Deterministic, post-derived keys are therefore impossible for both record
+   types. The server mints the key on first write via `createRecord`; the
+   plugin stores it and uses `putRecord` for subsequent updates.
+
+   **Consequence for deletes.** The stored key is now the *only* way to address
+   a record. If post meta is lost, the record cannot be deleted — there is no
+   key to derive and guessing would target the wrong record. `Document::remove()`
+   clears the local pointers and leaves the repo untouched in that case, which
+   orphans the record rather than deleting something unintended. Reconciling
+   orphans needs a repo-listing sweep, which is not built.
+
 ### Still open
 
-3. **`site` field format.** The lexicon says the field points to "a publication
-   record `at://` or a publication url `https://`". Which form the verifier
-   prefers is still unconfirmed. The plugin writes the AT-URI. Needs testing.
-
-4. **Record key convention — documents.** Still undocumented. The plugin uses
-   `wp-<post ID>`, which is valid per the record-key grammar and makes writes
-   idempotent. No counter-evidence found; no document records existed in the
-   inspected repo to compare against.
+4. **`site` field format.** The lexicon says the field points to "a publication
+   record `at://` or a publication url `https://`". The AT-URI form is accepted
+   by the PDS; whether Bluesky's verifier prefers it is unconfirmed pending a
+   card render.
 
 5. **Verification caching.** How long Bluesky caches the `.well-known` result
    and ingested records is unknown. Determines how soon after publishing a post
