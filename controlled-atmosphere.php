@@ -34,6 +34,16 @@ define( 'ControlledAtmosphere\PATH', plugin_dir_path( __FILE__ ) );
 const OPTION_KEY = 'controlled_atmosphere_settings';
 
 /**
+ * Option key holding plugin-managed state.
+ *
+ * Kept separate from OPTION_KEY because that option is registered with a
+ * sanitize callback, and update_option() runs it on every write. A callback
+ * written to carry form fields forward will silently discard values the plugin
+ * sets itself. State the plugin owns must not pass through it.
+ */
+const STATE_KEY = 'controlled_atmosphere_state';
+
+/**
  * Post meta keys.
  *
  * Underscore-prefixed so they stay out of the custom fields UI.
@@ -85,6 +95,36 @@ function get_setting( ?string $key = null, $default = null ) {
 	}
 
 	return $settings[ $key ] ?? $default;
+}
+
+/**
+ * Returns a single state value, or the whole state array when no key is given.
+ *
+ * @param string|null $key     State name.
+ * @param mixed       $default Value returned when the state is absent.
+ * @return mixed
+ */
+function get_state( ?string $key = null, $default = null ) {
+	$state = get_option( STATE_KEY, array() );
+
+	if ( ! is_array( $state ) ) {
+		$state = array();
+	}
+
+	if ( null === $key ) {
+		return $state;
+	}
+
+	return $state[ $key ] ?? $default;
+}
+
+/**
+ * Merges values into plugin-managed state.
+ *
+ * @param array $values Values to set.
+ */
+function update_state( array $values ): void {
+	update_option( STATE_KEY, array_merge( get_state(), $values ), false );
 }
 
 /**

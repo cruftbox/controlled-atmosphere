@@ -100,13 +100,13 @@ class Settings {
 			'publication_name'        => sanitize_text_field( $input['publication_name'] ?? '' ),
 			'publication_description' => sanitize_textarea_field( $input['publication_description'] ?? '' ),
 			'show_in_discover'        => ! empty( $input['show_in_discover'] ),
-			// Carry forward values that are not user-editable. Losing the rkey
-			// here would make the next sync create a second publication record
-			// instead of updating the existing one.
-			'publication_uri'         => $existing['publication_uri'] ?? '',
-			'publication_cid'         => $existing['publication_cid'] ?? '',
-			'publication_rkey'        => $existing['publication_rkey'] ?? '',
 		);
+
+		// Plugin-managed values (publication URI, CID, record key, verification
+		// file path) deliberately live in a separate option. update_option()
+		// runs this callback on every write, so anything listed here would be
+		// rebuilt from the submitted form and silently discard values the
+		// plugin set itself.
 
 		// App password: an unchanged mask means "keep what is stored".
 		$submitted_password = trim( (string) ( $input['app_password'] ?? '' ) );

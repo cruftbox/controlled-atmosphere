@@ -103,7 +103,7 @@ class Publication {
 	 * The stored AT-URI of the publication record.
 	 */
 	public function get_uri(): string {
-		return (string) get_setting( 'publication_uri', '' );
+		return (string) get_state( 'publication_uri', '' );
 	}
 
 	/**
@@ -160,11 +160,13 @@ class Publication {
 
 		$uri = (string) ( $response['uri'] ?? '' );
 
-		$settings                     = get_setting();
-		$settings['publication_uri']  = $uri;
-		$settings['publication_cid']  = (string) ( $response['cid'] ?? '' );
-		$settings['publication_rkey'] = ATProto_Client::rkey_from_uri( $uri );
-		update_option( OPTION_KEY, $settings );
+		update_state(
+			array(
+				'publication_uri'  => $uri,
+				'publication_cid'  => (string) ( $response['cid'] ?? '' ),
+				'publication_rkey' => ATProto_Client::rkey_from_uri( $uri ),
+			)
+		);
 
 		return $uri;
 	}
@@ -183,7 +185,7 @@ class Publication {
 	 * @return string|\WP_Error Existing key, or an empty string to create one.
 	 */
 	private function existing_rkey( ATProto_Client $client, string $url ) {
-		$stored = (string) get_setting( 'publication_rkey', '' );
+		$stored = (string) get_state( 'publication_rkey', '' );
 
 		if ( '' !== $stored ) {
 			return $stored;
@@ -269,9 +271,7 @@ class Publication {
 
 		// Recorded so uninstall removes only a file this plugin created, never
 		// one placed by hand or by another tool.
-		$settings                       = get_setting();
-		$settings['verification_file']  = $file;
-		update_option( OPTION_KEY, $settings );
+		update_state( array( 'verification_file' => $file ) );
 
 		return $file;
 	}
