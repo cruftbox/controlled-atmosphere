@@ -91,7 +91,16 @@ class Blobs {
 		}
 
 		$mime = wp_check_filetype( $path );
-		$blob = $client->upload_blob( $bytes, $mime['type'] ?: 'application/octet-stream' );
+		$type = (string) ( $mime['type'] ?: '' );
+
+		// Both blob fields declare accept: ["image/*"], so anything else is
+		// rejected by the PDS. A featured image is normally an image, but the
+		// thumbnail ID can point at any attachment.
+		if ( ! str_starts_with( $type, 'image/' ) ) {
+			return null;
+		}
+
+		$blob = $client->upload_blob( $bytes, $type );
 
 		if ( is_wp_error( $blob ) ) {
 			return $blob;

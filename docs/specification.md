@@ -552,6 +552,26 @@ the plugin was installed. Two static files plus two records produced the card.
 - Updating an existing document record via `putRecord`.
 - Any plugin code. The plugin has still never run.
 
+### Lexicon constraints, verified against the published schema
+
+Fetched from `com.atproto.lexicon.schema` in the lexicon publisher's repo
+(`did:plc:re3ebnp5v7ffagz6rb6xfei4`) rather than from prose documentation.
+
+| Field | Constraint |
+|---|---|
+| `document.title` | maxLength 5000, maxGraphemes 500 |
+| `document.description` | maxLength 30000, maxGraphemes 3000 |
+| `document.tags` | array; each item maxLength 1280, maxGraphemes 128. **No cap on array length.** |
+| `document.coverImage` | blob, `accept: ["image/*"]`, maxSize 1000000 |
+| `document.site` | string, `format: uri` — so both `at://` and `https://` satisfy it |
+| `publication.icon` | blob, `accept: ["image/*"]`, maxSize 1000000 |
+| `publication.name` | maxLength 5000, maxGraphemes 500 |
+| Required — document | `site`, `title`, `publishedAt` |
+| Required — publication | `url`, `name` |
+
+The plugin's limits match. Two notes: the 25-tag cap is self-imposed, not a
+lexicon requirement; and `maxSize` is 1,000,000 bytes, not 1 MiB.
+
 ### Host-specific finding
 
 On the target host, `/etc/httpd/conf.d/lets-encrypt.conf` contains:
