@@ -112,6 +112,9 @@ Uninstalling does not delete records from your repo.
 
 ## More
 
+- [Controlled Atmosphere: a WordPress plug-in for creating standard.site
+  records for Bluesky posting](https://cruftbox.com/2026/09/07/controlled-atmosphere-a-wordpress-plug-in-for-creating-standard-site-records-for-bluesky-posting/):
+  the blog post explaining what this is and why it exists
 - [`docs/advanced.md`](docs/advanced.md): `.well-known` troubleshooting, keeping
   the app password out of the database, extending the document record
 - [`docs/learnings.md`](docs/learnings.md): what this cost to discover
