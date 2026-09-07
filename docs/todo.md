@@ -15,16 +15,16 @@ it as `app.bsky.embed.external` (`app/bluesky.py:214`), for any entry that has a
 link and no image. A Bluesky post has exactly one embed slot, so that card is
 what the post record carries.
 
-**The likely cause.** Posting a weblog link through Broadside fills the embed
-slot with a generic preview, and the post does not get the native View
-Publication treatment that the same URL gets when pasted into the bsky.app
-composer.
+**What is observed.** Posting a weblog link through Broadside produces no View
+Publication badging at all. Confirmed by Michael on 2026-09-07. The same URL
+pasted into the bsky.app composer does get the badging.
 
-**What is not yet established.** Whether Bluesky derives the View Publication
-badging by resolving whatever URI an external embed points at, or only for links
-it resolved itself. If it is the former, the difference is something else about
-Broadside's card, not the card's existence. Do not start writing a fix until
-this is settled.
+**What is not yet established.** Why. Two hypotheses survive the observation
+above, because both predict exactly it: either Broadside's embed occupies the
+slot and stops Bluesky resolving the URL at all, or the embed is missing
+whatever field triggers the augmentation. Note that a card can carry both a
+preview and the badging at once, so the embed's mere presence is not
+disqualifying. Do not start writing a fix until this is settled.
 
 **The test that settles it.** Post the same weblog URL twice, once through
 Broadside and once through the bsky.app composer. Read both `app.bsky.feed.post`
