@@ -511,20 +511,69 @@ live repo that already carried Standard.site records.
    orphans the record rather than deleting something unintended. Reconciling
    orphans needs a repo-listing sweep, which is not built.
 
+### Also resolved
+
+4. **`site` field format.** RESOLVED. The publication AT-URI works. A document
+   record carrying `site: at://.../site.standard.publication/<tid>` rendered the
+   native card, with the **View publication** button, in the Bluesky composer on
+   2026-09-06. The `https://` alternative was not tested and does not need to be.
+
 ### Still open
 
-4. **`site` field format.** The lexicon says the field points to "a publication
-   record `at://` or a publication url `https://`". The AT-URI form is accepted
-   by the PDS; whether Bluesky's verifier prefers it is unconfirmed pending a
-   card render.
-
-5. **Verification caching.** How long Bluesky caches the `.well-known` result
-   and ingested records is unknown. Determines how soon after publishing a post
-   becomes card-eligible.
+5. **Verification caching.** How long Bluesky caches the `.well-known` result and
+   ingested records is unknown. Determines how soon after publishing a post
+   becomes card-eligible. Note that a URL previously fetched as a 404 rendered
+   correctly once the files were in place, so negative results are evidently not
+   cached for long.
 
 ---
 
-## 12. Prior art
+## 12. End-to-end validation, 2026-09-06
+
+The whole mechanism was proven by hand, with no WordPress involvement, before
+the plugin was installed. Two static files plus two records produced the card.
+
+**Confirmed working:**
+
+- Both record shapes are accepted by a live PDS.
+- Server-minted TIDs for both collections.
+- `site` as the publication AT-URI.
+- A static file at `/.well-known/site.standard.publication` satisfies
+  verification.
+- `<link rel="site.standard.document">` and `...publication` on a plain static
+  HTML page are read by Bluesky's crawler.
+- The composer renders the native card with a **View publication** button,
+  showing title, description, publish date, publication name, and author handle.
+
+**Not exercised by this test:**
+
+- `coverImage` and the blob upload path — the test record carried no image.
+- `tags` — present in the record, no visible effect on the card.
+- Updating an existing document record via `putRecord`.
+- Any plugin code. The plugin has still never run.
+
+### Host-specific finding
+
+On the target host, `/etc/httpd/conf.d/lets-encrypt.conf` contains:
+
+```apache
+<Location /.well-known/>
+  RewriteEngine off
+</Location>
+```
+
+mod_rewrite is disabled for that entire path, so WordPress's rewrite to
+`index.php` never fires and Apache serves the filesystem directly. **PHP
+interception cannot work on this host at all** — only a real file will do. The
+plugin's fallback is therefore the operative path here, not a contingency.
+
+PHP-FPM runs as `cruftbox` via `SuexecUserGroup`, and the document root is
+`cruftbox:cruftbox` mode 2755, so the plugin's `WP_Filesystem` write has the
+permissions it needs.
+
+---
+
+## 13. Prior art
 
 **ATmosphere** (Automattic) covers much of this specification and more:
 `site.standard.publication` and `site.standard.document` records, both link
@@ -549,7 +598,7 @@ restated honestly rather than implying the capability does not exist elsewhere.
 
 ---
 
-## 13. Sources
+## 14. Sources
 
 - [Standard.site](https://standard.site/)
 - [Document Lexicon](https://standard.site/docs/lexicons/document)
