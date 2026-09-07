@@ -8,12 +8,9 @@ a native article card shows the post's cover image, the title "My 2026 Reading
 Challenge", a description, the publication date, and a View publication button
 labelled Cruftbox by @cruftbox.com.](docs/images/controlled-atmo-test-post.png)
 
-*A post written by hand, in the author's own words. The plugin only made the
-link eligible for the card. It never touched the timeline.*
-
 ## What it does
 
-Every syndication plugin for Bluesky works by posting for you. This one doesn't
+Most syndication plug-ins for Bluesky work by posting for you. This one doesn't
 post at all.
 
 When you publish a WordPress post, Controlled Atmosphere writes a
