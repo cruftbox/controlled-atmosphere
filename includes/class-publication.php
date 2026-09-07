@@ -207,6 +207,94 @@ class Publication {
 	}
 
 	/**
+	 * Writes the verification file to disk.
+	 *
+	 * The PHP handler in maybe_serve_well_known() only works when the request
+	 * actually reaches WordPress. Where the web server owns /.well-known/ --
+	 * commonly because a TLS client aliased that directory for ACME challenges
+	 * -- it never does, and the only thing that answers is a real file. Since
+	 * the server is already serving that directory from disk, putting the file
+	 * there works immediately.
+	 *
+	 * @return string|\WP_Error Absolute path written, or an error explaining
+	 *                          what to do by hand.
+	 */
+	public function write_verification_file() {
+		$uri = $this->get_uri();
+
+		if ( '' === $uri ) {
+			return new \WP_Error(
+				'controlled_atmosphere_no_publication',
+				__( 'Sync the publication record first, so there is an AT-URI to write.', 'controlled-atmosphere' )
+			);
+		}
+
+		require_once ABSPATH . 'wp-admin/includes/file.php';
+
+		global $wp_filesystem;
+
+		// Only the direct transport is useful here. Prompting for FTP
+		// credentials to write one line of text would be a worse experience
+		// than the manual instructions.
+		if ( ! WP_Filesystem() || ! $wp_filesystem instanceof \WP_Filesystem_Base ) {
+			return $this->manual_instructions( __( 'WordPress cannot write to the filesystem directly on this host.', 'controlled-atmosphere' ) );
+		}
+
+		// get_home_path() resolves to the directory serving home_url(), which
+		// is what matters here -- it differs from ABSPATH when WordPress lives
+		// in a subdirectory but the site is served from the domain root.
+		$root = trailingslashit( get_home_path() );
+		$dir  = $root . '.well-known';
+		$file = $dir . '/site.standard.publication';
+
+		if ( ! $wp_filesystem->is_dir( $dir ) && ! $wp_filesystem->mkdir( $dir, FS_CHMOD_DIR ) ) {
+			return $this->manual_instructions(
+				sprintf(
+					/* translators: %s: directory path. */
+					__( 'Could not create %s.', 'controlled-atmosphere' ),
+					$dir
+				)
+			);
+		}
+
+		if ( ! $wp_filesystem->put_contents( $file, $uri, FS_CHMOD_FILE ) ) {
+			return $this->manual_instructions(
+				sprintf(
+					/* translators: %s: file path. */
+					__( 'Could not write %s.', 'controlled-atmosphere' ),
+					$file
+				)
+			);
+		}
+
+		// Recorded so uninstall removes only a file this plugin created, never
+		// one placed by hand or by another tool.
+		$settings                       = get_setting();
+		$settings['verification_file']  = $file;
+		update_option( OPTION_KEY, $settings );
+
+		return $file;
+	}
+
+	/**
+	 * Builds an error carrying exact by-hand instructions.
+	 *
+	 * @param string $reason Why the automatic write failed.
+	 */
+	private function manual_instructions( string $reason ): \WP_Error {
+		return new \WP_Error(
+			'controlled_atmosphere_write_failed',
+			sprintf(
+				/* translators: 1: reason, 2: file path, 3: file contents. */
+				__( '%1$s Create this file by hand instead: %2$s containing exactly one line: %3$s', 'controlled-atmosphere' ),
+				$reason,
+				'.well-known/site.standard.publication',
+				$this->get_uri()
+			)
+		);
+	}
+
+	/**
 	 * Confirms the verification endpoint is reachable from outside.
 	 *
 	 * Many hosts intercept .well-known before WordPress sees the request. That

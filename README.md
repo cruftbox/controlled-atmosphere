@@ -123,18 +123,34 @@ https://your-site.example/.well-known/site.standard.publication
 It must return your publication's AT-URI as plain text:
 
 ```
-at://did:plc:xxxxxxxxxxxxxxxxxxxxxxxx/site.standard.publication/self
+at://did:plc:xxxxxxxxxxxxxxxxxxxxxxxx/site.standard.publication/3muuw2vqqcyop
 ```
 
-The plugin serves this by intercepting the request in PHP. **Many web servers
-handle `/.well-known/` themselves and never pass the request to WordPress.** When
-that happens the plugin cannot help — every setting will look correct and no card
-will ever render.
+The plugin answers this two ways, trying the tidier one first.
 
-This is why setup runs an external self-check. Always click **Sync publication
-and verify** and read the result.
+**1. PHP interception.** The plugin watches for that request and answers it
+directly. Nothing is written to disk, and the value updates itself if you ever
+connect a different account. This works on most hosts.
 
-### Diagnosing
+**2. A file on disk.** Many servers handle `/.well-known/` themselves and never
+pass the request to WordPress — commonly because a TLS client aliased that
+directory for ACME challenges. When the self-check detects this, the plugin
+writes the file for you, then re-checks. Since the server is already serving
+that directory from disk, the file is picked up immediately.
+
+You do not have to choose. **Sync publication and verify** tries interception,
+detects failure, writes the file, and confirms the result. It only asks you to
+do something by hand if both paths fail — and then it prints the exact path and
+contents you need.
+
+Automatic writing needs WordPress to have direct filesystem access to your site
+root, which is common but not universal. Managed hosts with read-only webroots
+will refuse it.
+
+If the plugin created the file, uninstalling removes it. A file you placed by
+hand is left alone.
+
+### Diagnosing by hand
 
 ```sh
 curl -i https://your-site.example/.well-known/site.standard.publication
@@ -142,8 +158,18 @@ curl -i https://your-site.example/.well-known/site.standard.publication
 
 You want `200 OK` and the AT-URI as the body.
 
-**nginx** — a `location ^~ /.well-known/` block (often added by a TLS client) may
-be serving a static directory. Add an exception ahead of it:
+To find out whether your server is intercepting the path, compare two 404s:
+
+```sh
+curl -s -o /dev/null -w "%{http_code} %{size_download}\n" https://your-site.example/.well-known/nope
+curl -s -o /dev/null -w "%{http_code} %{size_download}\n" https://your-site.example/nope
+```
+
+A small response (a few hundred bytes) from the first and a large themed one
+from the second means the web server is answering, not WordPress.
+
+**nginx** — if a `location ^~ /.well-known/` block exists, either let the plugin
+write the file, or route this one path to WordPress:
 
 ```nginx
 location = /.well-known/site.standard.publication {
@@ -151,12 +177,9 @@ location = /.well-known/site.standard.publication {
 }
 ```
 
-**Apache** — confirm `.htaccess` rewrites reach WordPress for dotted paths. Some
-configurations block dot-directories outright.
-
-**Static fallback** — if the server insists on serving the path itself, create the
-file by hand containing only the AT-URI from the Status panel. It changes only if
-you connect a different Bluesky account.
+**Apache** — an `Alias` or `<Directory>` block for `/.well-known/`, usually added
+by certbot, will take the path away from WordPress. The file-on-disk approach
+works regardless.
 
 ## Excluding a post
 

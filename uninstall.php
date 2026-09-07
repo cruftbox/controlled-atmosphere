@@ -11,6 +11,18 @@
 
 defined( 'WP_UNINSTALL_PLUGIN' ) || exit;
 
+// Remove the verification file, but only if this plugin created it -- never a
+// file placed by hand or by another tool.
+$ca_settings = get_option( 'controlled_atmosphere_settings' );
+
+if ( is_array( $ca_settings ) && ! empty( $ca_settings['verification_file'] ) ) {
+	$ca_file = $ca_settings['verification_file'];
+
+	if ( is_string( $ca_file ) && file_exists( $ca_file ) ) {
+		wp_delete_file( $ca_file );
+	}
+}
+
 delete_option( 'controlled_atmosphere_settings' );
 delete_option( 'controlled_atmosphere_blob_cache' );
 delete_transient( 'controlled_atmosphere_session' );

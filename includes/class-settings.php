@@ -203,18 +203,38 @@ class Settings {
 
 		check_admin_referer( 'controlled_atmosphere_verify' );
 
-		$result = Publication::instance()->sync();
+		$publication = Publication::instance();
+
+		$result = $publication->sync();
 		$notice = 'synced';
 
 		if ( is_wp_error( $result ) ) {
 			$notice = 'sync_failed';
 			set_transient( 'controlled_atmosphere_notice', $result->get_error_message(), 60 );
 		} else {
-			$check = Publication::instance()->verify_well_known();
+			$check = $publication->verify_well_known();
 
+			// The endpoint is unreachable, which on many hosts simply means the
+			// web server owns /.well-known/ and WordPress never sees the
+			// request. Writing the file is the fix, so try it before reporting
+			// failure -- and only report failure if it still does not verify.
 			if ( is_wp_error( $check ) ) {
-				$notice = 'well_known_failed';
-				set_transient( 'controlled_atmosphere_notice', $check->get_error_message(), 60 );
+				$written = $publication->write_verification_file();
+
+				if ( is_wp_error( $written ) ) {
+					$notice = 'well_known_failed';
+					set_transient( 'controlled_atmosphere_notice', $written->get_error_message(), 60 );
+				} else {
+					$recheck = $publication->verify_well_known();
+
+					if ( is_wp_error( $recheck ) ) {
+						$notice = 'well_known_failed';
+						set_transient( 'controlled_atmosphere_notice', $recheck->get_error_message(), 60 );
+					} else {
+						$notice = 'synced_with_file';
+						set_transient( 'controlled_atmosphere_notice', $written, 60 );
+					}
+				}
 			}
 		}
 
@@ -446,7 +466,8 @@ class Settings {
 		$map = array(
 			'synced'            => array( 'success', __( 'Publication record saved and the verification endpoint responded correctly.', 'controlled-atmosphere' ) ),
 			'sync_failed'       => array( 'error', __( 'Could not write the publication record.', 'controlled-atmosphere' ) ),
-			'well_known_failed' => array( 'error', __( 'The publication record was written, but the verification endpoint is not reachable. Bluesky will not render article cards until this is fixed.', 'controlled-atmosphere' ) ),
+			'well_known_failed' => array( 'error', __( 'The publication record was written, but the verification endpoint is not reachable and could not be created automatically. Bluesky will not render article cards until this is fixed.', 'controlled-atmosphere' ) ),
+			'synced_with_file'  => array( 'success', __( 'Publication record saved. Your web server handles the .well-known path itself, so the verification file was written to disk instead, and it now responds correctly.', 'controlled-atmosphere' ) ),
 			'backfill_done'     => array( 'success', __( 'Backfill complete.', 'controlled-atmosphere' ) ),
 			'backfill_partial'  => array( 'warning', __( 'Backfill finished with failures. Check the Bluesky column on the Posts screen for details.', 'controlled-atmosphere' ) ),
 		);
